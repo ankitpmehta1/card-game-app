@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>CardGame Arena</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&family=Montserrat:wght@800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            background: radial-gradient(circle at center, #1e272e, #000000);
+            color: white;
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* --- BACKGROUND GRAPHICS --- */
+        .floating-card {
+            position: absolute;
+            width: 120px;
+            height: 180px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+            opacity: 0.1;
+            z-index: 0;
+            animation: float 10s infinite ease-in-out;
+        }
+        .c1 { top: 10%; left: 10%; transform: rotate(-15deg); animation-delay: 0s; background: #ff7675; }
+        .c2 { top: 70%; left: 20%; transform: rotate(10deg); width: 80px; height: 120px; animation-delay: 2s; background: #74b9ff; }
+        .c3 { top: 30%; right: 15%; transform: rotate(25deg); animation-delay: 1s; background: #55efc4; }
+        .c4 { top: 80%; right: 30%; transform: rotate(-5deg); width: 100px; height: 150px; animation-delay: 3s; background: #a29bfe; }
+
+        @keyframes float {
+            0% { transform: translateY(0) rotate(var(--r)); }
+            50% { transform: translateY(-20px) rotate(var(--r)); }
+            100% { transform: translateY(0) rotate(var(--r)); }
+        }
+
+        /* --- MAIN CONTENT --- */
+        .container {
+            z-index: 1;
+            text-align: center;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            padding: 60px;
+            border-radius: 20px;
+            border: 1px solid rgba(255,255,255,0.1);
+            box-shadow: 0 0 40px rgba(0,0,0,0.5);
+            max-width: 500px;
+            width: 90%;
+            animation: popIn 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        h1 {
+            font-family: 'Montserrat', sans-serif;
+            font-size: 50px;
+            margin: 0 0 10px 0;
+            background: linear-gradient(45deg, #00d2d3, #5f27cd);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        p { font-size: 18px; color: #b2bec3; margin-bottom: 40px; }
+
+        .google-btn {
+            background-color: white;
+            color: #333;
+            padding: 12px 25px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 50px;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 15px;
+            transition: all 0.3s;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            border: 1px solid #ddd;
+        }
+        .google-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 25px rgba(255,255,255,0.2);
+            background: #f1f2f6;
+        }
+        
+        .features {
+            display: flex; justify-content: space-around; margin-top: 40px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 20px;
+        }
+        .feat { font-size: 12px; color: #636e72; text-transform: uppercase; letter-spacing: 1px; font-weight: bold; }
+        .feat span { display: block; font-size: 24px; margin-bottom: 5px; }
+
+        @keyframes popIn {
+            from { opacity: 0; transform: scale(0.8); }
+            to { opacity: 1; transform: scale(1); }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="floating-card c1" style="--r: -15deg;"></div>
+    <div class="floating-card c2" style="--r: 10deg;"></div>
+    <div class="floating-card c3" style="--r: 25deg;"></div>
+    <div class="floating-card c4" style="--r: -5deg;"></div>
+
+    <div class="container">
+        <h1>Card Arena</h1>
+        <p>Real-time multiplayer strategy games.</p>
+        
+        <a href="/login" class="google-btn">
+            <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+            </svg>
+            Sign in with Google
+        </a>
+
+        <div class="features">
+            <div class="feat"><span>🎲</span>PickPass</div>
+            <div class="feat"><span>🃏</span>BidWiser</div>
+            <div class="feat"><span>🤖</span>Smart Bots</div>
+        </div>
+    </div>
+
+</body>
+</html>

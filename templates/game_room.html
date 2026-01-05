@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Game Room</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&family=Montserrat:wght@700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    
+    <style>
+        /* --- GLOBAL THEME --- */
+        :root {
+            --bg-dark: #121212;
+            --glass-bg: rgba(30, 30, 30, 0.6);
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --highlight: #00d2d3;
+            --accent-red: #ff7675;
+            --accent-green: #55efc4;
+            --chip-color: #fab1a0;
+            --gold: #ffeaa7;
+            --text-main: #e0e0e0;
+        }
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            background: radial-gradient(circle at center, #1e272e, #000000);
+            color: var(--text-main);
+            margin: 0; padding: 20px;
+            text-align: center;
+            overflow-x: hidden;
+            min-height: 100vh;
+        }
+
+        /* --- BACKGROUND ANIMATIONS --- */
+        .bg-shape { position: absolute; border-radius: 50%; opacity: 0.05; z-index: -1; animation: floatBG 20s infinite linear; }
+        .bg1 { width: 300px; height: 300px; background: var(--highlight); top: -50px; left: -50px; }
+        .bg2 { width: 400px; height: 400px; background: #5f27cd; bottom: -100px; right: -100px; animation-duration: 30s; }
+        @keyframes floatBG { 0% { transform: translate(0,0) rotate(0deg); } 50% { transform: translate(20px, 40px) rotate(10deg); } 100% { transform: translate(0,0) rotate(0deg); } }
+
+        /* --- HEADER --- */
+        .header-container {
+            display: flex; justify-content: space-between; align-items: center;
+            background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px);
+            padding: 15px 30px; border-radius: 15px; border: 1px solid var(--glass-border);
+            margin-bottom: 30px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+        .profile-img { width: 45px; height: 45px; border-radius: 50%; border: 2px solid var(--highlight); }
+        .username { font-family: 'Montserrat', sans-serif; font-size: 20px; color: white; margin-left:15px; text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
+        .logout-link { color: var(--accent-red); text-decoration: none; font-weight: bold; font-size: 14px; padding: 8px 15px; border: 1px solid rgba(255,118,117,0.3); border-radius: 20px; transition: all 0.3s; }
+        .logout-link:hover { background: rgba(255,118,117,0.1); }
+
+        /* --- BUTTONS --- */
+        .nav-btn { padding: 12px 25px; background: #333; color: white; border-radius: 8px; transition: all 0.3s; font-weight: bold; border: 1px solid #444; cursor: pointer; }
+        .nav-btn:hover { background: var(--highlight); color: black; transform: translateY(-3px); }
+        
+        .action-btn {
+            background: white; color: black; font-weight: bold; padding: 15px 40px;
+            border-radius: 50px; border: none; font-size: 16px; cursor: pointer;
+            transition: all 0.2s; width: 80%; text-transform: uppercase; letter-spacing: 1px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        .action-btn:hover { transform: translateY(-3px) scale(1.02); box-shadow: 0 10px 20px rgba(0,0,0,0.3); }
+        .btn-take { background: linear-gradient(135deg, #ff7675, #d63031); color: white; }
+        .btn-pass { background: linear-gradient(135deg, #55efc4, #00b894); color: #2d3436; }
+
+        /* --- LOBBY & WAITING ROOM --- */
+        .lobby-wrapper { display: flex; justify-content: center; gap: 40px; flex-wrap: wrap; perspective: 1000px; }
+        .lobby-card {
+            background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(15px);
+            border: 1px solid var(--glass-border); padding: 40px; border-radius: 20px;
+            width: 300px; text-align: center; box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+            transition: transform 0.3s; position: relative; overflow: hidden;
+        }
+        .lobby-card:hover { transform: translateY(-10px); border-color: rgba(0, 210, 211, 0.3); }
+        .lobby-card::before { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 5px; background: linear-gradient(90deg, var(--highlight), #5f27cd); }
+        .code-input { background: rgba(0,0,0,0.3); border: 2px solid rgba(255,255,255,0.1); color: var(--highlight); font-size: 24px; padding: 15px; width: 80%; border-radius: 10px; text-align: center; letter-spacing: 5px; margin-bottom: 20px; outline: none; }
+        
+        .waiting-room-container { background: rgba(30, 30, 30, 0.9); backdrop-filter: blur(20px); padding: 40px; border-radius: 20px; max-width: 600px; margin: 0 auto; border: 1px solid var(--glass-border); }
+        .room-code-badge { background: rgba(0,0,0,0.4); border: 2px dashed var(--highlight); color: var(--highlight); font-size: 48px; font-weight: bold; font-family: 'Montserrat', sans-serif; padding: 10px 40px; border-radius: 15px; display: inline-block; letter-spacing: 8px; margin: 20px 0; }
+        .roster-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 15px; margin: 30px 0; }
+        .roster-card { background: rgba(255,255,255,0.05); padding: 15px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,0.05); }
+        .roster-card.me { border-color: var(--highlight); background: rgba(0, 210, 211, 0.1); }
+
+        /* --- GAME VISUALS (Cards) --- */
+        .card-visual {
+            display: inline-flex; justify-content: center; align-items: center;
+            width: 55px; height: 80px;
+            background: linear-gradient(135deg, #ffffff, #f1f2f6);
+            color: #2d3436; font-family: 'Montserrat', sans-serif; font-weight: 800; font-size: 22px;
+            border-radius: 8px; box-shadow: 2px 4px 8px rgba(0,0,0,0.4);
+            margin: 3px; position: relative; user-select: none;
+            transition: transform 0.2s, box-shadow 0.2s, margin 0.3s;
+            border: 1px solid #dfe6e9;
+        }
+        .card-visual:hover { transform: translateY(-10px) scale(1.1); box-shadow: 0 8px 20px rgba(0,0,0,0.6); z-index: 100; border-color: white; }
+        
+        .card-prize { 
+            width: 90px; height: 130px; font-size: 32px; 
+            background: linear-gradient(135deg, #ffeaa7, #fab1a0); 
+            border: 2px solid #fdcb6e; 
+            box-shadow: 0 0 20px rgba(253, 203, 110, 0.4);
+            animation: floatCard 3s infinite ease-in-out;
+        }
+        @keyframes floatCard { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+
+        .card-hidden {
+            background: #2d3436; border: 2px solid #636e72;
+            background-image: repeating-linear-gradient(45deg, #2d3436, #2d3436 10px, #353b48 10px, #353b48 20px);
+        }
+        
+        /* --- PICKPASS GAME TABLE --- */
+        .game-hud { margin-bottom: 20px; display: flex; justify-content: center; align-items: center; gap: 20px; }
+        .pot-box {
+            background: rgba(0,0,0,0.6); padding: 10px 30px; border-radius: 30px; border: 1px solid var(--chip-color);
+            display: flex; align-items: center; gap: 10px;
+            box-shadow: 0 0 15px rgba(225, 112, 85, 0.2);
+        }
+        
+        .pickpass-grid { display: flex; flex-direction: column; gap: 12px; max-width: 800px; margin: 0 auto; }
+        
+        .player-panel {
+            background: rgba(45, 52, 54, 0.6); backdrop-filter: blur(5px); padding: 15px 25px;
+            border-radius: 12px; border-left: 4px solid transparent; display: flex; align-items: center; justify-content: space-between;
+            transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+        }
+        
+        .player-panel.active {
+            background: linear-gradient(90deg, rgba(0, 210, 211, 0.15), rgba(45, 52, 54, 0.4));
+            border-left: 4px solid var(--highlight); transform: scale(1.02); box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        
+        .player-info { display: flex; align-items: center; gap: 15px; }
+        .turn-dot { width: 10px; height: 10px; border-radius: 50%; background: #444; transition: background 0.3s; }
+        .player-panel.active .turn-dot { background: var(--highlight); box-shadow: 0 0 10px var(--highlight); }
+        
+        .chip-display { background: rgba(0,0,0,0.3); border: 1px solid var(--chip-color); color: var(--chip-color); padding: 4px 10px; border-radius: 15px; font-size: 12px; font-weight: bold; }
+        .points-display { font-family: monospace; color: #b2bec3; font-size: 14px; }
+
+        /* --- BIDWISER BATTLEFIELD --- */
+        .battle-container { display: flex; flex-direction: column; gap: 30px; max-width: 700px; margin: 0 auto; position: relative; }
+        
+        .zone { background: rgba(255,255,255,0.03); border-radius: 15px; padding: 20px; border: 1px solid rgba(255,255,255,0.05); }
+        .zone.enemy { opacity: 0.8; }
+        .zone.prize-zone { background: radial-gradient(circle, rgba(253, 203, 110, 0.1), transparent); border-color: rgba(253, 203, 110, 0.2); }
+        
+        .hand-container { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px; min-height: 90px; }
+        .status-text { font-size: 14px; color: var(--highlight); text-transform: uppercase; letter-spacing: 1px; font-weight: bold; margin-top: 10px; }
+
+        /* New: Last Round Visuals */
+        .last-round-display {
+            background: rgba(0,0,0,0.5); padding: 15px; border-radius: 10px; margin-top: 15px;
+            display: flex; justify-content: center; align-items: center; gap: 20px;
+            border: 1px dashed rgba(255,255,255,0.2); animation: fadeIn 0.5s;
+        }
+        .vs-text { font-family: 'Montserrat', sans-serif; font-size: 24px; color: #aaa; font-style: italic; }
+        .reveal-card { animation: flipIn 0.6s ease-out; }
+        
+        @keyframes flipIn {
+            0% { transform: rotateY(90deg); opacity: 0; }
+            100% { transform: rotateY(0); opacity: 1; }
+        }
+        
+        .card-winner { border: 3px solid var(--accent-green); box-shadow: 0 0 15px var(--accent-green); }
+        .card-loser { filter: grayscale(100%); opacity: 0.7; }
+
+        /* --- HISTORY LOG --- */
+        .data-stream {
+            margin-top: 30px; background: rgba(0,0,0,0.4); border-radius: 10px;
+            padding: 10px; height: 120px; overflow-y: auto; text-align: left;
+            border: 1px solid rgba(255,255,255,0.05);
+            font-family: 'Courier New', monospace; font-size: 13px;
+        }
+        .stream-entry { padding: 5px 10px; border-bottom: 1px solid rgba(255,255,255,0.05); color: #b2bec3; }
+        .stream-entry b { color: white; }
+        .stream-win { color: var(--accent-green); }
+        .stream-loss { color: var(--accent-red); }
+
+        /* --- GAME OVER --- */
+        .game-over-modal {
+            background: rgba(20, 20, 20, 0.95); padding: 50px; border-radius: 20px;
+            border: 1px solid var(--highlight); box-shadow: 0 0 50px rgba(0, 210, 211, 0.3);
+            animation: zoomIn 0.5s;
+        }
+        @keyframes zoomIn { 0% { transform: scale(0.8); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+        .leader-table { width: 100%; margin-top: 20px; border-collapse: collapse; }
+        .leader-table th { text-align: left; color: #636e72; padding: 10px; border-bottom: 1px solid #333; }
+        .leader-table td { text-align: left; padding: 15px 10px; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 18px; }
+        .winner-row { background: linear-gradient(90deg, rgba(255, 234, 167, 0.1), transparent); color: var(--gold); font-weight: bold; }
+        
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+    </style>
+</head>
+<body>
+
+    <div class="bg-shape bg1"></div>
+    <div class="bg-shape bg2"></div>
+
+    <div class="header-container">
+        <div class="profile-section" style="display:flex; gap:15px; align-items:center;">
+            <img src="{{ picture }}" class="profile-img" alt="Profile">
+            <div class="username" id="displayUsername">{{ username }}</div>
+        </div>
+        <a href="/logout" class="logout-link">LOGOUT</a>
+    </div>
+
+    <div id="lobby-screen">
+        <h1 style="font-family:'Montserrat'; font-size:40px; margin-bottom:50px; text-shadow:0 0 20px rgba(0,210,211,0.5);">COMMAND CENTER</h1>
+        
+        <div class="lobby-wrapper">
+            <div class="lobby-card">
+                <div style="font-size:50px; margin-bottom:15px;">👑</div>
+                <h2 style="margin:0 0 10px 0;">Host Protocol</h2>
+                <p style="color:#aaa; margin-bottom:30px;">Initialize a secure room.</p>
+                <button class="action-btn" onclick="createRoom()">Create Room</button>
+            </div>
+            
+            <div class="lobby-card">
+                <div style="font-size:50px; margin-bottom:15px;">📡</div>
+                <h2 style="margin:0 0 10px 0;">Join Frequency</h2>
+                <p style="color:#aaa; margin-bottom:20px;">Enter access code.</p>
+                <input type="text" id="roomCodeInput" class="code-input" placeholder="0000" maxlength="4">
+                <button class="action-btn" style="background:transparent; border:2px solid rgba(255,255,255,0.2); color:white;" onclick="joinRoom()">Connect</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="waiting-room" style="display:none;">
+        <div class="waiting-room-container">
+            <h2 style="color:#aaa; text-transform:uppercase; font-size:12px; letter-spacing:3px; margin-bottom:10px;">Secure Channel</h2>
+            <div class="room-code-badge" id="displayCode">----</div>
+            
+            <h3 style="margin-top:40px;">Active Agents</h3>
+            <div class="roster-grid" id="playerList"></div>
+            
+            <div id="hostControls" style="display:none; margin-top:40px; padding-top:30px; border-top:1px solid rgba(255,255,255,0.1);">
+                <p style="margin-bottom:20px; font-weight:bold; color:var(--highlight);">INITIATE PROTOCOL:</p>
+                <div style="display:flex; justify-content:center; gap:20px;">
+                    <button class="action-btn" style="background:var(--accent-red); color:white; width:auto; padding:15px 30px;" onclick="startGame('pickpass')">PickPass</button>
+                    <button class="action-btn" style="background:var(--accent-green); color:black; width:auto; padding:15px 30px;" onclick="startGame('bidwiser')">BidWiser</button>
+                </div>
+            </div>
+            <div id="guestMsg" style="display:none; color:#888; margin-top:30px; font-style:italic;">
+                <span class="material-icons" style="vertical-align:middle; font-size:16px;">hourglass_empty</span> Awaiting Host Authorization...
+            </div>
+        </div>
+    </div>
+
+    <div id="game-area" style="display:none;"></div>
+
+    <script>
+        var socket = io();
+        var myName = "{{ username }}"; 
+        var isHost = false;
+
+        // --- LOBBY EVENTS ---
+        function createRoom() { socket.emit('create_room'); }
+        function joinRoom() { 
+            let code = document.getElementById('roomCodeInput').value;
+            socket.emit('join_room', {code: code}); 
+        }
+        function startGame(type) { socket.emit('start_game', {game_type: type}); }
+
+        socket.on('room_joined', function(room) {
+            myName = room.your_name; 
+            document.getElementById('displayUsername').innerText = myName; 
+            enterWaitingRoom(room);
+            isHost = (room.host == myName);
+            if(isHost) document.getElementById('hostControls').style.display = 'block';
+            else document.getElementById('guestMsg').style.display = 'block';
+        });
+
+        socket.on('room_update', function(room) { updatePlayerList(room.players); });
+        socket.on('error_msg', function(data) { alert(data.msg); });
+
+        function enterWaitingRoom(room) {
+            document.getElementById('lobby-screen').style.display = 'none';
+            document.getElementById('waiting-room').style.display = 'block';
+            document.getElementById('displayCode').innerText = room.code;
+            updatePlayerList(room.players);
+        }
+
+        function updatePlayerList(players) {
+            let html = '';
+            players.forEach(p => {
+                let isMe = (p == myName);
+                let initials = p.substring(0,2).toUpperCase();
+                html += `<div class="roster-card ${isMe ? 'me' : ''}">
+                    <div style="width:40px; height:40px; background:#555; border-radius:50%; margin-bottom:10px; display:flex; align-items:center; justify-content:center; font-weight:bold;">${initials}</div>
+                    <div style="font-weight:bold; color:white; font-size:14px;">${p}</div>
+                    ${isMe ? '<div style="font-size:10px; color:var(--highlight); margin-top:5px;">YOU</div>' : ''}
+                </div>`;
+            });
+            document.getElementById('playerList').innerHTML = html;
+        }
+
+        // --- GAME LOGIC ---
+        socket.on('game_started', function(state) {
+            document.getElementById('waiting-room').style.display = 'none';
+            document.getElementById('game-area').style.display = 'block';
+            handleGameUpdate(state);
+        });
+
+        socket.on('update_game', function(state) { handleGameUpdate(state); });
+
+        function handleGameUpdate(state) {
+            if(state.game_type == 'pickpass') renderPickPass(state);
+            else if(state.game_type == 'bidwiser') renderBidWiser(state);
+        }
+
+        function calculateLiveScore(cards) {
+            if (!cards || cards.length === 0) return 0;
+            let sorted = cards.slice().sort((a,b) => a - b);
+            let score = 0;
+            let previous = -1;
+            sorted.forEach(card => {
+                if (card !== previous + 1) score += card;
+                previous = card;
+            });
+            return score;
+        }
+
+        // --- PICKPASS RENDERER ---
+        function renderPickPass(state) {
+            if (state.game_over) { renderGameOver(state, "PickPass"); return; }
+            
+            // HUD
+            let html = `<div class="game-hud">
+                <h2 style="color:var(--highlight); margin:0;">PICKPASS</h2>
+                <div class="pot-box">
+                    <span class="material-icons" style="color:var(--chip-color)">monetization_on</span>
+                    <span style="font-size:24px; font-weight:bold; color:white;">${state.pot}</span>
+                </div>
+                <div style="position:relative;">
+                    <span style="font-size:12px; color:#aaa; display:block; margin-bottom:5px;">OFFER</span>
+                    <div class="card-visual card-prize">${state.current_card}</div>
+                    <span style="font-size:10px; color:#666; position:absolute; bottom:-20px; width:100%; left:0;">${state.deck_count} left</span>
+                </div>
+            </div>`;
+            
+            // PLAYER GRID
+            html += `<div class="pickpass-grid">`;
+            state.players.forEach((p, idx) => {
+                let isActive = (idx == state.current_player);
+                let currentPts = calculateLiveScore(p.cards);
+                
+                let sorted = p.cards.slice().sort((a,b)=>a-b);
+                let handHtml = sorted.map((card, i) => {
+                    let isSequenced = (i > 0 && card == sorted[i-1] + 1);
+                    let bg = isSequenced ? "background:#636e72; color:#b2bec3; border:1px solid #555;" : "";
+                    let margin = isSequenced ? "margin-left:-2px; z-index:0;" : "margin-left:8px; z-index:1;";
+                    return `<span class="card-visual" style="width:35px; height:50px; font-size:16px; ${bg} ${margin}">${card}</span>`;
+                }).join('');
+                
+                html += `<div class="player-panel ${isActive ? 'active' : ''}">
+                    <div class="player-info">
+                        <div class="turn-dot"></div>
+                        <div>
+                            <div style="font-weight:bold; font-size:16px; color:${isActive ? 'white' : '#aaa'}">${p.name}</div>
+                            <div style="display:flex; gap:10px; margin-top:5px;">
+                                <span class="chip-badge">${p.chips} 🪙</span>
+                                <span class="points-display">Pts: ${currentPts}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="display:flex; align-items:center;">${handHtml}</div>
+                </div>`;
+            });
+            html += `</div>`;
+
+            // CONTROLS
+            if (state.current_player_name == myName) {
+                html += `<div style="margin-top:30px; border-top:1px solid rgba(255,255,255,0.1); padding-top:20px; display:flex; justify-content:center; gap:20px;">
+                    <button class="action-btn btn-take" style="width:auto; padding:15px 50px;" onclick="sendPick('take')">TAKE</button>
+                    <button class="action-btn btn-pass" style="width:auto; padding:15px 50px;" onclick="sendPick('pass')">PASS (-1 Token)</button>
+                </div>`;
+            } else {
+                html += `<div style="margin-top:30px; color:#666; font-style:italic;">Waiting for ${state.current_player_name}...</div>`;
+            }
+            document.getElementById('game-area').innerHTML = html;
+        }
+
+        // --- BIDWISER RENDERER (UPDATED VISUALS) ---
+        function renderBidWiser(state) {
+            if (state.game_over) { renderGameOver(state, "BidWiser"); return; }
+            
+            let me, enemy;
+            if (state.p1.name == myName) { me = state.p1; enemy = state.p2; }
+            else { me = state.p2; enemy = state.p1; }
+            
+            let html = `<div class="battle-container">`;
+            
+            // OPPONENT
+            html += `<div class="zone enemy">
+                <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+                    <span style="font-weight:bold;">${enemy.name}</span>
+                    <span style="color:var(--highlight); font-weight:bold;">SCORE: ${enemy.score}</span>
+                </div>
+                <div class="hand-container">`;
+                // Render Face Down Cards
+                for(let i=0; i<enemy.hand_count; i++) {
+                    html += `<div class="card-visual card-hidden" style="width:40px; height:60px;"></div>`;
+                }
+            html += `</div>
+                <div class="status-text">${enemy.has_moved ? "CARD LOCKED" : "DECIDING..."}</div>
+            </div>`;
+            
+            // PRIZE & LAST ROUND RESOLUTION
+            html += `<div class="zone prize-zone">
+                <div style="display:flex; justify-content:center; align-items:center; gap:30px;">
+                    <div style="text-align:center;">
+                        <div style="font-size:12px; color:#aaa; margin-bottom:5px;">CURRENT PRIZE</div>
+                        <div class="card-visual card-prize">${state.current_prize}</div>
+                    </div>
+                    
+                    <div style="text-align:left;">
+                        <div style="font-size:12px; color:#aaa;">POT VALUE</div>
+                        <div style="font-size:36px; font-weight:bold; color:white;">${state.total_pot}</div>
+                    </div>
+                </div>`;
+            
+            // --- LAST ROUND VISUAL ---
+            if (state.history.length > 0) {
+                let last = state.history[state.history.length - 1];
+                let myLastCard = (state.p1.name == myName) ? last.p1_card : last.p2_card;
+                let enemyLastCard = (state.p1.name == myName) ? last.p2_card : last.p1_card;
+                
+                // Determine winner color
+                let myClass = "", enemyClass = "";
+                if (last.result.includes(myName)) myClass = "card-winner";
+                else if (last.result.includes(enemy.name)) { myClass = "card-loser"; enemyClass = "card-winner"; }
+                else if (last.result.includes("Split") || last.result.includes("Tie")) { /* Neutral */ }
+                else { myClass = "card-loser"; } // Enemy won
+
+                html += `<div class="last-round-display">
+                    <div>
+                        <div style="font-size:10px; color:#aaa; margin-bottom:2px;">YOU</div>
+                        <div class="card-visual reveal-card ${myClass}">${myLastCard}</div>
+                    </div>
+                    <div class="vs-text">VS</div>
+                    <div>
+                        <div style="font-size:10px; color:#aaa; margin-bottom:2px;">ENEMY</div>
+                        <div class="card-visual reveal-card ${enemyClass}">${enemyLastCard}</div>
+                    </div>
+                </div>`;
+            }
+            html += `</div>`; // End prize zone
+            
+            // PLAYER
+            html += `<div class="zone me">
+                <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+                    <span style="font-weight:bold; color:var(--highlight);">YOU</span>
+                    <span style="color:var(--accent-green); font-weight:bold;">SCORE: ${me.score}</span>
+                </div>`;
+                
+            if (!me.has_moved) {
+                html += `<div class="hand-container">`;
+                me.hand.forEach(card => {
+                    html += `<button class="card-visual card-btn" onclick="sendBid(${card})">${card}</button>`;
+                });
+                html += `</div>`;
+            } else {
+                html += `<div style="padding:20px; color:var(--accent-green); font-weight:bold;">BID SUBMITTED</div>`;
+            }
+            html += `</div>`;
+            
+            // DATA STREAM (History)
+            html += `<div class="data-stream">`;
+            state.history.slice().reverse().forEach(h => {
+                let winClass = "";
+                if (h.result.includes(myName)) winClass = "stream-win";
+                else if (h.result.includes(enemy.name)) winClass = "stream-loss";
+                
+                html += `<div class="stream-entry">
+                    <span>Prize <b>${h.prize}</b></span> :: 
+                    <span>You[${h.result.includes(myName) ? '<b>'+me.score+'</b>' : ''}] vs Enemy</span> :: 
+                    <span class="${winClass}">${h.result}</span>
+                </div>`;
+            });
+            html += `</div></div>`;
+            
+            document.getElementById('game-area').innerHTML = html;
+        }
+
+        function renderGameOver(state, type) {
+             let html = `<div class="game-over-modal">
+                <h1 style="font-size:50px; margin-bottom:10px; color:white;">MATCH COMPLETE</h1>`;
+             
+             if(type == 'PickPass') {
+                 html += `<h2 style="color:var(--gold); margin-bottom:30px;">Winner: ${state.leaderboard[0].name}</h2>`;
+                 html += `<table class="leader-table">`;
+                 state.leaderboard.forEach((p, idx) => {
+                    let isWinner = idx === 0;
+                    html += `<tr class="${isWinner ? 'winner-row' : ''}">
+                        <td>${isWinner ? '👑' : '#'+(idx+1)}</td>
+                        <td>${p.name}</td>
+                        <td style="color:var(--chip-color)">-${p.chips}</td>
+                        <td style="text-align:right; font-weight:bold;">${p.final_score}</td>
+                    </tr>`;
+                 });
+                 html += `</table>`;
+             } else {
+                 let winner = state.p1.score > state.p2.score ? state.p1.name : state.p2.name;
+                 if (state.p1.score == state.p2.score) winner = "Tie";
+                 let isWin = winner == myName;
+                 
+                 html += `<h2 style="font-size:40px; color:${isWin ? 'var(--gold)' : 'var(--accent-red)'}">${isWin ? "VICTORY" : (winner=="Tie"?"DRAW":"DEFEAT")}</h2>`;
+                 html += `<div style="font-size:24px; margin:30px 0;">
+                    ${state.p1.name}: <b>${state.p1.score}</b> <br>
+                    ${state.p2.name}: <b>${state.p2.score}</b>
+                 </div>`;
+             }
+             html += `<br><br><a href="/reset_game" class="action-btn" style="text-decoration:none; display:inline-block; width:auto;">Return to Base</a></div>`;
+             document.getElementById('game-area').innerHTML = html;
+        }
+
+        function sendPick(action) { socket.emit('player_action', {action: action}); }
+        function sendBid(card) { socket.emit('player_action', {card: card}); }
+    </script>
+</body>
+</html>

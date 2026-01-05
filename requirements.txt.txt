@@ -1,0 +1,6 @@
+Flask
+flask-socketio
+eventlet
+authlib
+requests
+gunicorn

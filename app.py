@@ -1,6 +1,7 @@
 from flask import Flask, render_template, session, redirect, url_for, request
 from flask_socketio import SocketIO, emit, join_room, leave_room
 from authlib.integrations.flask_client import OAuth
+from werkzeug.middleware.proxy_fix import ProxyFix
 import random
 import string
 import os
@@ -10,6 +11,7 @@ from logic_pickpass import PickPassGame
 from logic_bidwiser import BidWiserGame
 
 app = Flask(__name__)
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 app.config['SECRET_KEY'] = 'secret_key_change_this_in_prod'
 
 # --- GOOGLE AUTH CONFIGURATION ---

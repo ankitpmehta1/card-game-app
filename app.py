@@ -1,3 +1,7 @@
+# --- CRITICAL FIX: MONKEY PATCH MUST BE FIRST ---
+import eventlet
+eventlet.monkey_patch()
+
 from flask import Flask, render_template, session, redirect, url_for, request
 from flask_socketio import SocketIO, emit, join_room, leave_room
 from authlib.integrations.flask_client import OAuth
@@ -11,11 +15,10 @@ from logic_pickpass import PickPassGame
 from logic_bidwiser import BidWiserGame
 
 app = Flask(__name__)
-app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1) # HTTPS Fix for Render
 app.config['SECRET_KEY'] = 'secret_key_change_this_in_prod'
 
 # --- GOOGLE AUTH CONFIGURATION ---
-# Keys provided by user
 app.config['GOOGLE_CLIENT_ID'] = "58224886652-jpcqllauehf5ngpui98b29i3o6345ksr.apps.googleusercontent.com"
 app.config['GOOGLE_CLIENT_SECRET'] = "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"
 
@@ -28,7 +31,7 @@ google = oauth.register(
     client_kwargs={'scope': 'openid email profile'}
 )
 
-socketio = SocketIO(app)
+socketio = SocketIO(app, async_mode='eventlet')
 
 # --- GLOBAL ROOM MANAGER ---
 ROOMS = {}
@@ -113,7 +116,6 @@ def handle_join_room(data):
         counter = 2
         
         # If name exists, append #2, #3, etc.
-        # This loop ensures unique names even if "Ankit" and "Ankit #2" are already there
         temp_name = username
         while temp_name in room['players']:
             temp_name = f"{original_name} #{counter}"
@@ -132,7 +134,7 @@ def handle_join_room(data):
         # 1. Broadcast update to existing players
         socketio.emit('room_update', room, room=code)
         
-        # 2. CRITICAL FIX: Send the NEW username back to the client so JS knows who it is
+        # 2. Send the NEW username back to the client
         emit('room_joined', {
             'code': code, 
             'players': room['players'], 
@@ -151,8 +153,7 @@ def handle_start_game(data):
     if code in ROOMS:
         room = ROOMS[code]
         
-        # Security: Only host can start. 
-        # We check if current user is the host.
+        # Security Check: Only the host can start
         if room['host'] != username:
             return 
         
@@ -161,7 +162,7 @@ def handle_start_game(data):
         
         print(f"STARTING GAME {game_type} with players: {room['players']}")
         
-        # INSTANTIATE LOGIC
+        # INSTANTIATE GAME LOGIC
         if game_type == 'pickpass':
             room['game_instance'] = PickPassGame(room['players'])
         elif game_type == 'bidwiser':
@@ -186,7 +187,6 @@ def handle_action(data):
         game = room['game_instance']
         
         if room['game_type'] == 'pickpass':
-            # Security: Pass username to logic to verify turn
             state = game.play_turn(data['action'], player_name_check=username)
             state['game_type'] = 'pickpass'
             socketio.emit('update_game', state, room=code)

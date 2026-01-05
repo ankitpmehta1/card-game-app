@@ -15,7 +15,7 @@ from logic_pickpass import PickPassGame
 from logic_bidwiser import BidWiserGame
 
 app = Flask(__name__)
-app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1) # HTTPS Fix for Render
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 app.config['SECRET_KEY'] = 'secret_key_change_this_in_prod'
 
 # --- GOOGLE AUTH CONFIGURATION ---
@@ -50,7 +50,14 @@ def index():
 
 @app.route('/login')
 def login():
+    # --- FIX: FORCE HTTPS ON RENDER ---
     redirect_uri = url_for('auth', _external=True)
+    
+    # If the generated URL is http but we are on the cloud (Render), force https
+    if 'onrender.com' in redirect_uri and redirect_uri.startswith('http://'):
+        redirect_uri = redirect_uri.replace('http://', 'https://', 1)
+        
+    print(f"DEBUG: Redirecting to Google with callback: {redirect_uri}") 
     return google.authorize_redirect(redirect_uri)
 
 @app.route('/auth/callback')
@@ -79,25 +86,15 @@ def reset_game():
     session.pop('room_code', None)
     return redirect(url_for('room'))
 
-# --- SOCKET EVENTS (LOBBY & MATCHMAKING) ---
+# --- SOCKET EVENTS ---
 
 @socketio.on('create_room')
 def handle_create_room():
     username = session.get('username')
     code = generate_room_code()
-    
-    ROOMS[code] = {
-        'code': code,
-        'host': username,
-        'game_type': None,
-        'players': [username],
-        'game_instance': None,
-        'status': 'lobby'
-    }
+    ROOMS[code] = { 'code': code, 'host': username, 'game_type': None, 'players': [username], 'game_instance': None, 'status': 'lobby' }
     join_room(code)
     session['room_code'] = code
-    
-    # Send host their name back to confirm identity
     emit('room_joined', {'code': code, 'players': ROOMS[code]['players'], 'host': username, 'your_name': username}) 
 
 @socketio.on('join_room')
@@ -111,18 +108,13 @@ def handle_join_room(data):
             emit('error_msg', {'msg': 'Game already started!'})
             return
             
-        # --- DUPLICATE NAME HANDLING ---
         original_name = username
         counter = 2
-        
-        # If name exists, append #2, #3, etc.
         temp_name = username
         while temp_name in room['players']:
             temp_name = f"{original_name} #{counter}"
             counter += 1
         username = temp_name
-            
-        # IMPORTANT: Update session with new nickname
         session['username'] = username 
         
         if username not in room['players']:
@@ -130,17 +122,8 @@ def handle_join_room(data):
             
         join_room(code)
         session['room_code'] = code
-        
-        # 1. Broadcast update to existing players
         socketio.emit('room_update', room, room=code)
-        
-        # 2. Send the NEW username back to the client
-        emit('room_joined', {
-            'code': code, 
-            'players': room['players'], 
-            'host': room['host'], 
-            'your_name': username 
-        })
+        emit('room_joined', { 'code': code, 'players': room['players'], 'host': room['host'], 'your_name': username })
     else:
         emit('error_msg', {'msg': 'Invalid Room Code'})
 
@@ -152,46 +135,32 @@ def handle_start_game(data):
     
     if code in ROOMS:
         room = ROOMS[code]
-        
-        # Security Check: Only the host can start
-        if room['host'] != username:
-            return 
+        if room['host'] != username: return 
         
         room['game_type'] = game_type
         room['status'] = 'playing'
         
-        print(f"STARTING GAME {game_type} with players: {room['players']}")
-        
-        # INSTANTIATE GAME LOGIC
-        if game_type == 'pickpass':
-            room['game_instance'] = PickPassGame(room['players'])
-        elif game_type == 'bidwiser':
-            room['game_instance'] = BidWiserGame(room['players'])
+        if game_type == 'pickpass': room['game_instance'] = PickPassGame(room['players'])
+        elif game_type == 'bidwiser': room['game_instance'] = BidWiserGame(room['players'])
             
         state = room['game_instance'].get_state()
         state['game_type'] = game_type
         socketio.emit('game_started', state, room=code)
         
-        if game_type == 'pickpass':
-            check_bot_turn_pickpass(room)
-
-# --- GAMEPLAY EVENTS ---
+        if game_type == 'pickpass': check_bot_turn_pickpass(room)
 
 @socketio.on('player_action')
 def handle_action(data):
     username = session.get('username')
     code = session.get('room_code')
-    
     if code in ROOMS:
         room = ROOMS[code]
         game = room['game_instance']
-        
         if room['game_type'] == 'pickpass':
             state = game.play_turn(data['action'], player_name_check=username)
             state['game_type'] = 'pickpass'
             socketio.emit('update_game', state, room=code)
             check_bot_turn_pickpass(room)
-            
         elif room['game_type'] == 'bidwiser':
             has_changed = game.register_move(username, int(data['card']))
             if has_changed:
@@ -199,12 +168,9 @@ def handle_action(data):
                 state['game_type'] = 'bidwiser'
                 socketio.emit('update_game', state, room=code)
 
-# --- BOT HANDLERS ---
-
 def check_bot_turn_pickpass(room):
     game = room['game_instance']
     state = game.get_state()
-    
     while not state['game_over'] and not state['players'][state['current_player']]['is_human']:
         socketio.sleep(1.0)
         action = 'take' if game.bot_move() else 'pass'

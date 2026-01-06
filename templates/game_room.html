@@ -61,6 +61,12 @@
         .action-btn:hover { transform: translateY(-3px) scale(1.02); box-shadow: 0 10px 20px rgba(0,0,0,0.3); }
         .btn-take { background: linear-gradient(135deg, #ff7675, #d63031); color: white; }
         .btn-pass { background: linear-gradient(135deg, #55efc4, #00b894); color: #2d3436; }
+        
+        /* Disabled Button Style */
+        .btn-disabled { 
+            background: #636e72; color: #b2bec3; cursor: not-allowed; box-shadow: none; 
+        }
+        .btn-disabled:hover { transform: none; box-shadow: none; }
 
         /* --- LOBBY & WAITING ROOM --- */
         .lobby-wrapper { display: flex; justify-content: center; gap: 40px; flex-wrap: wrap; perspective: 1000px; }
@@ -145,7 +151,7 @@
         .hand-container { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px; min-height: 90px; }
         .status-text { font-size: 14px; color: var(--highlight); text-transform: uppercase; letter-spacing: 1px; font-weight: bold; margin-top: 10px; }
 
-        /* New: Last Round Visuals */
+        /* Last Round Visuals */
         .last-round-display {
             background: rgba(0,0,0,0.5); padding: 15px; border-radius: 10px; margin-top: 15px;
             display: flex; justify-content: center; align-items: center; gap: 20px;
@@ -319,7 +325,7 @@
             return score;
         }
 
-        // --- PICKPASS RENDERER ---
+        // --- PICKPASS RENDERER (UPDATED LOGIC) ---
         function renderPickPass(state) {
             if (state.game_over) { renderGameOver(state, "PickPass"); return; }
             
@@ -343,6 +349,7 @@
                 let isActive = (idx == state.current_player);
                 let currentPts = calculateLiveScore(p.cards);
                 
+                // Card Rendering
                 let sorted = p.cards.slice().sort((a,b)=>a-b);
                 let handHtml = sorted.map((card, i) => {
                     let isSequenced = (i > 0 && card == sorted[i-1] + 1);
@@ -367,11 +374,19 @@
             });
             html += `</div>`;
 
-            // CONTROLS
+            // CONTROLS (UPDATED FOR 0 CHIPS)
             if (state.current_player_name == myName) {
+                // Find my player object to check chips
+                let me = state.players.find(p => p.name == myName);
+                let canPass = (me.chips > 0);
+                
+                let passBtn = canPass 
+                    ? `<button class="action-btn btn-pass" style="width:auto; padding:15px 50px;" onclick="sendPick('pass')">PASS (-1)</button>`
+                    : `<button class="action-btn btn-disabled" style="width:auto; padding:15px 50px;" onclick="alert('You are out of tokens! You must take the card.')">PASS</button>`;
+
                 html += `<div style="margin-top:30px; border-top:1px solid rgba(255,255,255,0.1); padding-top:20px; display:flex; justify-content:center; gap:20px;">
                     <button class="action-btn btn-take" style="width:auto; padding:15px 50px;" onclick="sendPick('take')">TAKE</button>
-                    <button class="action-btn btn-pass" style="width:auto; padding:15px 50px;" onclick="sendPick('pass')">PASS (-1 Token)</button>
+                    ${passBtn}
                 </div>`;
             } else {
                 html += `<div style="margin-top:30px; color:#666; font-style:italic;">Waiting for ${state.current_player_name}...</div>`;
